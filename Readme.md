@@ -2,15 +2,9 @@ This is my curent configuration which I use with Frsky telemetry.
 There are two commands added to the serial protocol and few other modifications.
 
 Added commands:
-.
-.
-.
 #define MSP_SET_SERIAL_BAUDRATE 199 //in message   serial 0 boud rate
 #define MSP_ENABLE_FRSKY 198 //in message no parm
-.
-.
-.
-  /////////////////////////////////////////////////////////
+
    case MSP_SET_SERIAL_BAUDRATE: 
       if(!f.ARMED){
         SerialOpen(0,read32());
@@ -21,7 +15,3 @@ Added commands:
    case MSP_ENABLE_FRSKY:
      FrskyEnabled=true;
     break;
- //////////////////////////////////////////////////////////
- .
- .
- .
