@@ -1,4 +1,4 @@
-This is my curent configuration which I use with Frsky telemetry.
+This is my curent configuration which I use with CRIUS SE, Frsky telemetry and EZ-GUI.
 There are two commands added to the serial protocol and few other modifications.
 
 Added commands:
