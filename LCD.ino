@@ -8,6 +8,9 @@ static char line1[17],line2[17];
 #ifdef DISPLAY_FONT_DSIZE
   static uint8_t line_is_valid = 0;
 #endif
+#if ( defined(LOG_PERMANENT) && defined(DISPLAY_MULTILINE) )
+  static uint8_t lnr = 0;
+#endif
 
 char digit10000(uint16_t v) {return '0' + v / 10000;}
 char digit1000(uint16_t v) {return '0' + v / 1000 - (v/10000) * 10;}
@@ -524,25 +527,28 @@ void LCDcrlf() {
   #endif
 }
 void LCDclear() {
-#if defined(LCD_SERIAL3W)
-  LCDprint(0xFE);LCDprint(0x01);delay(10);LCDprint(0xFE);LCDprint(0x02);delay(10); // clear screen, cursor line 1, pos 0 for serial LCD Sparkfun - contrib by flyman777
-#elif defined(LCD_TEXTSTAR)
-  LCDprint(0x0c);
-#elif defined(LCD_VT100)
-  LCDcrlf();
-  LCDprint(0x1B); LCDprint(0x5B); LCDprintChar("2J"); //ED2
-  LCDcrlf();
-  LCDprint(0x1B); LCDprint(0x5B); LCDprintChar("1;1H");//cursor top left
-#elif defined(LCD_TTY)
-  LCDcrlf();
-#elif defined(LCD_ETPP)
-  i2c_ETPP_send_cmd(0x01); // Clear display command, which does NOT clear an Eagle Tree because character set "R" has a '>' at 0x20
-  for (byte i = 0; i<80; i++) i2c_ETPP_send_char(' ');// Blanks for all 80 bytes of RAM in the controller, not just the 2x16 display
-#elif defined(LCD_LCD03)
-  i2c_LCD03_send_cmd(12); // clear screen
-#elif defined(OLED_I2C_128x64)
-  i2c_clear_OLED();
-#endif
+  #if defined(LCD_SERIAL3W)
+    LCDprint(0xFE);LCDprint(0x01);delay(10);LCDprint(0xFE);LCDprint(0x02);delay(10); // clear screen, cursor line 1, pos 0 for serial LCD Sparkfun - contrib by flyman777
+  #elif defined(LCD_TEXTSTAR)
+    LCDprint(0x0c);
+  #elif defined(LCD_VT100)
+    LCDcrlf();
+    LCDprint(0x1B); LCDprint(0x5B); LCDprintChar("2J"); //ED2
+    LCDcrlf();
+    LCDprint(0x1B); LCDprint(0x5B); LCDprintChar("1;1H");//cursor top left
+  #elif defined(LCD_TTY)
+    LCDcrlf();
+  #elif defined(LCD_ETPP)
+    i2c_ETPP_send_cmd(0x01); // Clear display command, which does NOT clear an Eagle Tree because character set "R" has a '>' at 0x20
+    for (byte i = 0; i<80; i++) i2c_ETPP_send_char(' ');// Blanks for all 80 bytes of RAM in the controller, not just the 2x16 display
+  #elif defined(LCD_LCD03)
+    i2c_LCD03_send_cmd(12); // clear screen
+  #elif defined(OLED_I2C_128x64)
+    i2c_clear_OLED();
+  #endif
+  #if ( defined(LOG_PERMANENT) && defined(DISPLAY_MULTILINE) )
+    lnr = 0;
+  #endif
 }
 
 void LCDsetLine(byte line) { // Line = 1 or 2 - vt100 has lines 1-99
@@ -1046,11 +1052,13 @@ PROGMEM const void * const lcd_param_ptr_table [] = {
       &lcd_param_text51, &conf.activate[BOXHEADFREE],&__AUX4,
     #endif
   #endif
-  &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX1,
-  &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX2,
-  #ifndef SUPPRESS_LCD_CONF_AUX34
-    &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX3,
-    &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX4,
+  #if defined(BUZZER)
+    &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX1,
+    &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX2,
+    #ifndef SUPPRESS_LCD_CONF_AUX34
+      &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX3,
+      &lcd_param_text52, &conf.activate[BOXBEEPERON],&__AUX4,
+    #endif
   #endif
   #ifdef VARIOMETER
     &lcd_param_text53, &conf.activate[BOXVARIO],&__AUX1,
@@ -1335,6 +1343,7 @@ void configurationLoop() {
   uint8_t LCD=1;
   uint8_t refreshLCD = 1;
   uint8_t key = 0;
+  servos2Neutral();
   //#ifndef OLED_I2C_128x64
    initLCD();
   //#endif
@@ -1395,25 +1404,27 @@ void configurationLoop() {
   LCDsetLine(2);
   strcpy_P(line1,PSTR("Exit"));
   LCDprintChar(line1);
-#if defined(LCD_LCD03)
-  delay(2000); // wait for two seconds then clear screen and show initial message
-  initLCD();
-#endif
-#if defined(LCD_SERIAL3W)
-  SerialOpen(0,115200);
-#endif
-#ifdef LCD_TELEMETRY
-  delay(1500); // keep exit message visible for one and one half seconds even if (auto)telemetry continues writing in main loop
-#endif
-#if defined(OLED_I2C_128x64)
-  delay(2000); // wait for two seconds then clear screen and show initial message
-  cycleTime = 0;
-  #if defined(OLED_I2C_128x64LOGO_PERMANENT)
-    i2c_OLED_Put_Logo();
-  #else
-    LCDclear();
+  #if defined(LCD_LCD03)
+    delay(2000); // wait for two seconds then clear screen and show initial message
+    initLCD();
   #endif
-#endif  
+  #if defined(LCD_SERIAL3W)
+    SerialOpen(0,115200);
+  #endif
+  #if defined(LCD_TELEMETRY) || defined(OLED_I2C_128x64)
+    delay(1500); // keep exit message visible for one and one half seconds even if (auto)telemetry continues writing in main loop
+  #endif
+  cycleTime = 0;
+  #if defined(OLED_I2C_128x64)
+    #if defined(OLED_I2C_128x64LOGO_PERMANENT)
+      i2c_OLED_Put_Logo();
+    #elif !defined(LOG_PERMANENT_SHOW_AFTER_CONFIG)
+      LCDclear();
+    #endif
+  #endif
+  #ifdef LOG_PERMANENT_SHOW_AFTER_CONFIG
+    if (!f.ARMED) dumpPLog(0);
+  #endif
 }
 #endif // LCD_CONF
 // -------------------- telemetry output to LCD over serial/i2c ----------------------------------
@@ -1576,14 +1587,20 @@ void output_annex() {
   LCDprintChar(line2);
 }
 static char checkboxitemNames[][4] = {
+    "Arm",
     #if ACC
       "Ang","Hor",
     #endif
     #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
       "Bar",
     #endif
+    #ifdef VARIOMETER
+      "Var",
+    #endif
     #if MAG
       "Mag",
+      "HFr",
+      "HAd",
     #endif
     #if defined(SERVO_TILT) || defined(GIMBAL)|| defined(SERVO_MIX_TILT)
       "CSt",
@@ -1591,16 +1608,12 @@ static char checkboxitemNames[][4] = {
     #if defined(CAMTRIG)
       "CTr",
     #endif
-      "Arm",
     #if GPS
       "GHm",
       "GHd",
     #endif
     #if defined(FIXEDWING) || defined(HELICOPTER)
       "Pas",
-    #endif
-    #if MAG
-      "HFr",
     #endif
     #if defined(BUZZER)
       "Buz",
@@ -1611,12 +1624,6 @@ static char checkboxitemNames[][4] = {
     #endif
     #if defined(LANDING_LIGHTS_DDR)
       "LLs",
-    #endif
-    #if MAG
-      "HAd",
-    #endif
-    #ifdef VARIOMETER
-      "Var",
     #endif
     #ifdef INFLIGHT_ACC_CALIBRATION
       "Cal",
@@ -1903,20 +1910,20 @@ void lcd_telemetry() {
           output_mAh();
           break;
         case 4:// errors or ...
-          if (failsafeEvents || (i2c_errors_count>>1)) { // errors
+          if (failsafeEvents || (i2c_errors_count>>10)) { // errors
             // ignore i2c==1 because of bma020-init
             LCDalarmAndReverse();
             output_fails();
             LCDattributesOff();
           } else { // ... armed time
+            uint16_t ats = armedTime / 1000000;
             #ifdef ARMEDTIMEWARNING
-              uint16_t ats = armedTime / 1000000;
               if (ats > conf.armedtimewarning) { LCDattributesReverse(); }
               LCDbar(7, (ats < conf.armedtimewarning ? (((conf.armedtimewarning-ats+1)*100)/(conf.armedtimewarning+1)) : 0 ));
               LCDattributesOff();
-              LCDprint(' ');
-              print_uptime(ats);
             #endif
+            LCDprint(' ');
+            print_uptime(ats);
           }
           break;
         case 6:// height
@@ -2244,14 +2251,21 @@ void lcd_telemetry() {
 #endif // DISPLAY_MULTILINE
 
 void toggle_telemetry(uint8_t t) {
-  if (telemetry == t) telemetry = 0; else {telemetry = t; LCDclear();}
+  if (telemetry == t) telemetry = 0; 
+  else {
+     telemetry = t; 
+     #ifdef OLED_I2C_128x64
+       if (telemetry != 0) i2c_OLED_init();
+     #endif
+     LCDclear();
+  }
 }
 #endif //  LCD_TELEMETRY
 
 #ifdef LOG_PERMANENT
   void dumpPLog(uint8_t full) {
     #ifdef HAS_LCD
-      LCDclear(); LCDnextline();
+      /*LCDclear();*/ LCDnextline();
       if (full) {
         #ifdef DEBUG
           LCDprintChar("LastOff  "); LCDprintChar(plog.running ? "KO" : "ok");  LCDnextline();
@@ -2282,9 +2296,9 @@ void toggle_telemetry(uint8_t t) {
       LCDclear();
     #endif
   }
+
   void LCDnextline() {
     #if ( defined(DISPLAY_MULTILINE) )
-      static uint8_t lnr = 0;
       lnr++;
       if (lnr > (MULTILINE_PRE+MULTILINE_POST)) {
         lnr = 1;
@@ -2292,6 +2306,7 @@ void toggle_telemetry(uint8_t t) {
         LCDclear();
       }
       LCDsetLine(lnr);
+      LCD_FLUSH;
     #elif ( defined(DISPLAY_2LINES))
       #if (! (defined(LCD_TTY)  ) )
         delay(600);

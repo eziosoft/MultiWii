@@ -139,6 +139,7 @@
       //#define HK_MultiWii_SE_V2  // Hobbyking board with MPU6050 + HMC5883L + BMP085
       //#define HK_MultiWii_328P   // Also labeled "Hobbybro" on the back.  ITG3205 + BMA180 + BMP085 + NMC5583L + DSM2 Connector (Spektrum Satellite)  
       //#define RCNet_FC           // RCNet FC with MPU6050 and MS561101BA  http://www.rcnet.com
+      //#define FLYDU_ULTRA   // MEGA+10DOF+MT3339 FC
 
       
     /***************************    independent sensors    ********************************/
@@ -158,6 +159,7 @@
       //#define NUNCHACK  // if you want to use the nunckuk as a standalone I2C ACC without WMP
       //#define LIS3LV02
       //#define LSM303DLx_ACC
+      //#define MMA8451Q
 
       /* I2C barometer */
       //#define BMP085
@@ -178,10 +180,10 @@
       /* ADC accelerometer */ // for 5DOF from sparkfun, uses analog PIN A1/A2/A3
       //#define ADCACC
 
-      /* individual sensor orientation */
-      //#define ACC_ORIENTATION(X, Y, Z)  {accADC[ROLL]  =  Y; accADC[PITCH]  = -X; accADC[YAW]  = Z;}
-      //#define GYRO_ORIENTATION(X, Y, Z) {gyroADC[ROLL] = -Y; gyroADC[PITCH] =  X; gyroADC[YAW] = Z;}
-      //#define MAG_ORIENTATION(X, Y, Z)  {magADC[ROLL]  =  X; magADC[PITCH]  =  Y; magADC[YAW]  = Z;}
+      /* enforce your individual sensor orientation - even overrides board specific defaults */
+      //#define FORCE_ACC_ORIENTATION(X, Y, Z)  {accADC[ROLL]  =  Y; accADC[PITCH]  = -X; accADC[YAW]  = Z;}
+      //#define FORCE_GYRO_ORIENTATION(X, Y, Z) {gyroADC[ROLL] = -Y; gyroADC[PITCH] =  X; gyroADC[YAW] = Z;}
+      //#define FORCE_MAG_ORIENTATION(X, Y, Z)  {magADC[ROLL]  =  X; magADC[PITCH]  =  Y; magADC[YAW]  = Z;}
 
       /* Board orientation shift */
       /* If you have frame designed only for + mode and you cannot rotate FC phisycally for flying in X mode (or vice versa)
@@ -809,11 +811,14 @@
     //#define SUPPRESS_TELEMETRY_PAGE_8
     //#define SUPPRESS_TELEMETRY_PAGE_9
 
+    //#define RX_RSSI
+    //#define RX_RSSI_PIN A3
+
   /********************************************************************/
   /****                             Buzzer                         ****/
   /********************************************************************/
     //#define BUZZER
-    //#define RCOPTIONSBEEP         // uncomment this if you want the buzzer to beep at any rcOptions change on channel Aux1 to Aux4
+    #define RCOPTIONSBEEP         // uncomment this if you want the buzzer to beep at any rcOptions change on channel Aux1 to Aux4
     //#define ARMEDTIMEWARNING 330  // (*) Trigger an alarm after a certain time of being armed [s] to save you lipo (if your TX does not have a countdown)
     //#define PILOTLAMP             //Uncomment if you are using a X-Arcraft Pilot Lamp
 
@@ -1025,6 +1030,7 @@
     //#define LOG_PERMANENT 1023
     //#define LOG_PERMANENT_SHOW_AT_STARTUP // enable to display log at startup
     //#define LOG_PERMANENT_SHOW_AT_L // enable to display log when receiving 'L'
+    //#define LOG_PERMANENT_SHOW_AFTER_CONFIG // enable to display log after exiting LCD config menu
     //#define LOG_PERMANENT_SERVICE_LIFETIME 36000 // in seconds; service alert at startup after 10 hours of armed time
 
     /* to add debugging code

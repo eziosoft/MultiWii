@@ -43,111 +43,6 @@ enum pid {
   PIDITEMS
 };
 
-enum box {
-  #if ACC
-    BOXANGLE,
-    BOXHORIZON,
-  #endif
-  #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
-    BOXBARO,
-  #endif
-  #if MAG
-    BOXMAG,
-  #endif
-  #if defined(SERVO_TILT) || defined(GIMBAL)  || defined(SERVO_MIX_TILT)
-    BOXCAMSTAB,
-  #endif
-  #if defined(CAMTRIG)
-    BOXCAMTRIG,
-  #endif
-  BOXARM,
-  #if GPS
-    BOXGPSHOME,
-    BOXGPSHOLD,
-  #endif
-  #if defined(FIXEDWING) || defined(HELICOPTER)
-    BOXPASSTHRU,
-  #endif
-  #if MAG
-    BOXHEADFREE,
-  #endif
-  #if defined(BUZZER)
-    BOXBEEPERON,
-  #endif
-  #if defined(LED_FLASHER)
-    BOXLEDMAX, // we want maximum illumination
-    BOXLEDLOW, // low/no lights
-  #endif
-  #if defined(LANDING_LIGHTS_DDR)
-    BOXLLIGHTS, // enable landing lights at any altitude
-  #endif
-  #if MAG
-    BOXHEADADJ, // acquire heading for HEADFREE mode
-  #endif
-  #ifdef VARIOMETER
-    BOXVARIO,
-  #endif
-  #ifdef INFLIGHT_ACC_CALIBRATION
-    BOXCALIB,
-  #endif
-  #ifdef GOVERNOR_P
-    BOXGOV,
-  #endif
-  CHECKBOXITEMS
-};
-
-const char boxnames[] PROGMEM = // names for dynamic generation of config GUI
-  #if ACC
-    "ANGLE;"
-    "HORIZON;"
-  #endif
-  #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
-    "BARO;"
-  #endif
-  #if MAG
-    "MAG;"
-  #endif
-  #if defined(SERVO_TILT) || defined(GIMBAL)|| defined(SERVO_MIX_TILT)
-    "CAMSTAB;"
-  #endif
-  #if defined(CAMTRIG)
-    "CAMTRIG;"
-  #endif
-  "ARM;"
-  #if GPS
-    "GPS HOME;"
-    "GPS HOLD;"
-  #endif
-  #if defined(FIXEDWING) || defined(HELICOPTER)
-    "PASSTHRU;"
-  #endif
-  #if MAG
-    "HEADFREE;"
-  #endif
-  #if defined(BUZZER)
-    "BEEPER;"
-  #endif
-  #if defined(LED_FLASHER)
-    "LEDMAX;"
-    "LEDLOW;"
-  #endif
-  #if defined(LANDING_LIGHTS_DDR)
-    "LLIGHTS;"
-  #endif
-  #if MAG
-    "HEADADJ;"  
-  #endif
-  #ifdef VARIOMETER
-    "VARIO;"
-  #endif
-  #ifdef INFLIGHT_ACC_CALIBRATION
-    "CALIB;"
-  #endif
-  #ifdef GOVERNOR_P
-    "GOVERNOR;"
-  #endif
-;
-
 const char pidnames[] PROGMEM =
   "ROLL;"
   "PITCH;"
@@ -161,6 +56,152 @@ const char pidnames[] PROGMEM =
   "VEL;"
 ;
 
+enum box {
+  BOXARM,
+  #if ACC
+    BOXANGLE,
+    BOXHORIZON,
+  #endif
+  #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
+    BOXBARO,
+  #endif
+  #ifdef VARIOMETER
+    BOXVARIO,
+  #endif
+  #if MAG
+    BOXMAG,
+    BOXHEADFREE,
+    BOXHEADADJ, // acquire heading for HEADFREE mode
+  #endif
+  #if defined(SERVO_TILT) || defined(GIMBAL)  || defined(SERVO_MIX_TILT)
+    BOXCAMSTAB,
+  #endif
+  #if defined(CAMTRIG)
+    BOXCAMTRIG,
+  #endif
+  #if GPS
+    BOXGPSHOME,
+    BOXGPSHOLD,
+  #endif
+  #if defined(FIXEDWING) || defined(HELICOPTER)
+    BOXPASSTHRU,
+  #endif
+  #if defined(BUZZER)
+    BOXBEEPERON,
+  #endif
+  #if defined(LED_FLASHER)
+    BOXLEDMAX, // we want maximum illumination
+    BOXLEDLOW, // low/no lights
+  #endif
+  #if defined(LANDING_LIGHTS_DDR)
+    BOXLLIGHTS, // enable landing lights at any altitude
+  #endif
+  #ifdef INFLIGHT_ACC_CALIBRATION
+    BOXCALIB,
+  #endif
+  #ifdef GOVERNOR_P
+    BOXGOV,
+  #endif
+  CHECKBOXITEMS
+};
+
+const char boxnames[] PROGMEM = // names for dynamic generation of config GUI
+  "ARM;"
+  #if ACC
+    "ANGLE;"
+    "HORIZON;"
+  #endif
+  #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
+    "BARO;"
+  #endif
+  #ifdef VARIOMETER
+    "VARIO;"
+  #endif
+  #if MAG
+    "MAG;"
+    "HEADFREE;"
+    "HEADADJ;"  
+  #endif
+  #if defined(SERVO_TILT) || defined(GIMBAL)|| defined(SERVO_MIX_TILT)
+    "CAMSTAB;"
+  #endif
+  #if defined(CAMTRIG)
+    "CAMTRIG;"
+  #endif
+  #if GPS
+    "GPS HOME;"
+    "GPS HOLD;"
+  #endif
+  #if defined(FIXEDWING) || defined(HELICOPTER)
+    "PASSTHRU;"
+  #endif
+  #if defined(BUZZER)
+    "BEEPER;"
+  #endif
+  #if defined(LED_FLASHER)
+    "LEDMAX;"
+    "LEDLOW;"
+  #endif
+  #if defined(LANDING_LIGHTS_DDR)
+    "LLIGHTS;"
+  #endif
+  #ifdef INFLIGHT_ACC_CALIBRATION
+    "CALIB;"
+  #endif
+  #ifdef GOVERNOR_P
+    "GOVERNOR;"
+  #endif
+;
+
+const uint8_t boxids[] PROGMEM = {// permanent IDs associated to boxes. This way, you can rely on an ID number to identify a BOX function.
+  0, //"ARM;"
+  #if ACC
+    1, //"ANGLE;"
+    2, //"HORIZON;"
+  #endif
+  #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
+    3, //"BARO;"
+  #endif
+  #ifdef VARIOMETER
+    4, //"VARIO;"
+  #endif
+  #if MAG
+    5, //"MAG;"
+    6, //"HEADFREE;"
+    7, //"HEADADJ;"  
+  #endif
+  #if defined(SERVO_TILT) || defined(GIMBAL)|| defined(SERVO_MIX_TILT)
+    8, //"CAMSTAB;"
+  #endif
+  #if defined(CAMTRIG)
+    9, //"CAMTRIG;"
+  #endif
+  #if GPS
+    10, //"GPS HOME;"
+    11, //"GPS HOLD;"
+  #endif
+  #if defined(FIXEDWING) || defined(HELICOPTER)
+    12, //"PASSTHRU;"
+  #endif
+  #if defined(BUZZER)
+    13, //"BEEPER;"
+  #endif
+  #if defined(LED_FLASHER)
+    14, //"LEDMAX;"
+    15, //"LEDLOW;"
+  #endif
+  #if defined(LANDING_LIGHTS_DDR)
+    16, //"LLIGHTS;"
+  #endif
+  #ifdef INFLIGHT_ACC_CALIBRATION
+    17, //"CALIB;"
+  #endif
+  #ifdef GOVERNOR_P
+    18, //"GOVERNOR;"
+  #endif
+};
+
+
 static uint32_t currentTime = 0;
 static uint16_t previousTime = 0;
 static uint16_t cycleTime = 0;     // this is the number in micro second to achieve a full loop, it can differ a little and is taken into account in the PID loop
@@ -168,17 +209,14 @@ static uint16_t calibratingA = 0;  // the calibration is done in the main loop. 
 static uint16_t calibratingB = 0;  // baro calibration = get new ground pressure value
 static uint16_t calibratingG;
 static uint16_t acc_1G;            // this is the 1G measured acceleration
-static int16_t  acc_25deg;
-static int16_t  headFreeModeHold;
+static uint16_t acc_25deg;
 static int16_t  gyroADC[3],accADC[3],accSmooth[3],magADC[3];
-static int16_t  heading,magHold;
+static int16_t  heading,magHold,headFreeModeHold; // [-180;+180]
 static uint8_t  vbat;                   // battery voltage in 0.1V steps
 static uint8_t  vbatMin = VBATNOMINAL;  // lowest battery voltage in 0.1V steps
 static uint8_t  rcOptions[CHECKBOXITEMS];
-static int32_t  BaroAlt;
-static int32_t  EstAlt;             // in cm
+static int32_t  BaroAlt,EstAlt,AltHold; // in cm
 static int16_t  BaroPID = 0;
-static int32_t  AltHold;
 static int16_t  errorAltitudeI = 0;
 static int16_t  vario = 0;              // variometer in cm/s
 
@@ -281,10 +319,11 @@ static uint16_t intPowerMeterSum, intPowerTrigger1;
 static int16_t failsafeEvents = 0;
 volatile int16_t failsafeCnt = 0;
 
-static int16_t rcData[RC_CHANS];   // interval [1000;2000]
-static int16_t rcCommand[4];       // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW 
+static int16_t rcData[RC_CHANS];    // interval [1000;2000]
+static int16_t rcCommand[4];        // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW 
 static int16_t lookupPitchRollRC[6];// lookup table for expo & RC rate PITCH+ROLL
 static int16_t lookupThrottleRC[11];// lookup table for expo & mid THROTTLE
+static uint16_t rssi;               // range: [0;1023]
 
 #if defined(SPEKTRUM)
   volatile uint8_t  spekFrameFlags;
@@ -390,7 +429,7 @@ static struct {
   uint16_t disarm;        // #disarm events
   uint16_t start;         // #powercycle/reset/initialize events
   uint32_t armed_time ;   // copy of armedTime @ disarm
-  uint32_t lifetime;      // accumulated lifetime in seconds
+  uint32_t lifetime;      // sum (armed) lifetime in seconds
   uint16_t failsafe;      // #failsafe state @ disarm
   uint16_t i2c;           // #i2c errs state @ disarm
   uint8_t  running;       // toggle on arm & disarm to monitor for clean shutdown vs. powercut
@@ -539,7 +578,16 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
     #endif
     alarmHandler(); // external buzzer routine that handles buzzer events globally now
   #endif  
-  
+
+  #if defined(RX_RSSI)
+    static uint8_t sig = 0;
+    uint16_t rssiRaw = 0;
+    static uint16_t rssiRawArray[8];
+    rssiRawArray[(sig++)%8] = analogRead(RX_RSSI_PIN);
+    for (uint8_t i=0;i<8;i++) rssiRaw += rssiRawArray[i];
+    rssi = rssiRaw / 8;       
+  #endif
+
   if ( (calibratingA>0 && ACC ) || (calibratingG>0) ) { // Calibration phasis
     LEDPIN_TOGGLE;
   } else {
@@ -622,7 +670,7 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
     if (cycleTime < cycleTimeMin) cycleTimeMin = cycleTime; // remember lowscore
   #endif
   if (f.ARMED)  {
-    #if defined(LCD_TELEMETRY) || defined(ARMEDTIMEWARNING)
+    #if defined(LCD_TELEMETRY) || defined(ARMEDTIMEWARNING) || defined(LOG_PERMANENT)
       armedTime += (uint32_t)cycleTime;
     #endif
     #if defined(VBAT)
@@ -788,6 +836,27 @@ void go_disarm() {
     #endif
   }
 }
+void servos2Neutral() {
+  #ifdef TRI
+    servo[5] = 1500; // we center the yaw servo in conf mode
+    writeServos();
+  #endif
+  #ifdef FLYING_WING
+    servo[0]  = conf.wing_left_mid;
+    servo[1]  = conf.wing_right_mid;
+    writeServos();
+  #endif
+  #ifdef AIRPLANE
+    for(i = 4; i<7 ;i++) servo[i] = 1500;
+    writeServos();
+  #endif
+  #ifdef HELICOPTER
+    servo[5] = YAW_CENTER;
+    servo[3] = servo[4] = servo[6] = 1500;
+    writeServos();
+  #endif
+}
+
 // ******** Main Loop *********
 void loop () {
   static uint8_t rcDelayCommand; // this indicates the number of time (multiple of RC measurement at 50Hz) the sticks must be maintained to run or switch off motors
@@ -901,19 +970,6 @@ void loop () {
           }
         #endif
         if (rcSticks == THR_LO + YAW_HI + PIT_HI + ROL_CE) {            // Enter LCD config
-          #ifdef TRI
-            servo[5] = 1500; // we center the yaw servo in conf mode
-            writeServos();
-          #endif
-          #ifdef FLYING_WING
-            servo[0]  = conf.wing_left_mid;
-            servo[1]  = conf.wing_right_mid;
-            writeServos();
-          #endif
-          #ifdef AIRPLANE
-            for(i = 4; i<7 ;i++) servo[i] = 1500;
-            writeServos();
-          #endif          
           #if defined(LCD_CONF)
             configurationLoop(); // beginning LCD configuration
           #endif
@@ -937,7 +993,10 @@ void loop () {
         #ifdef LCD_TELEMETRY_STEP
           else if (rcSticks == THR_LO + YAW_CE + PIT_HI + ROL_HI) {              // Telemetry next step
             telemetry = telemetryStepSequence[++telemetryStepIndex % strlen(telemetryStepSequence)];
-            LCDclear(); // make sure to clear away remnants
+            #ifdef OLED_I2C_128x64
+              if (telemetry != 0) i2c_OLED_init();
+            #endif
+            LCDclear();
           }
         #endif
         else if (rcSticks == THR_HI + YAW_LO + PIT_LO + ROL_CE) calibratingA=400;     // throttle=max, yaw=left, pitch=min
