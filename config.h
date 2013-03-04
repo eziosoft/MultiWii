@@ -102,6 +102,8 @@
       //#define SIRIUS          // Sirius Navigator IMU                                             <- confirmed by Alex
       //#define SIRIUSGPS       // Sirius Navigator IMU  using external MAG on GPS board            <- confirmed by Alex
       //#define SIRIUS600       // Sirius Navigator IMU  using the WMP for the gyro
+      //#define SIRIUS_AIR      // Sirius Navigator IMU 6050 32U4 from MultiWiiCopter.com
+      //#define SIRIUS_AIR_GPS  // Sirius Navigator IMU 6050 32U4 from MultiWiiCopter.com with GPS/MAG remote located
       //#define MINIWII         // Jussi's MiniWii Flight Controller                                <- confirmed by Alex
       //#define MICROWII        // MicroWii 10DOF with ATmega32u4, MPU6050, HMC5883L, MS561101BA from http://flyduino.net/
       //#define CITRUSv2_1      // CITRUS from qcrc.ca
@@ -323,8 +325,19 @@
      #define DUALCOPTER_SERVO {1,1} //Pitch,Roll
     /* Use  SERVO_OFFSET and SERVO_RATES in Heli and Airplane section for centering and endpoints */
 
-
-
+  /***********************      your individual mixing     ***********************/
+    /* if you want to override an existing entry in the mixing table, you may want to avoid esditing the
+     * mixTable() function for every version again and again. Then you must
+     * 1) enable the correct copter type which resembles correct number of motors&servos
+     * 2) create a file with your choice of name which contains all the mixing code for motors and servos.
+     *    To get an idea, look at mixTable() function
+     * 3) enable your mixing code with this define; replace filename with your chosen name
+     *    (if you needed this info then probably this is not for you; start with an existing copter type and
+     *    predefined mixing table entry)
+     * 4) optionally limit the 'leave headroom for gyro correction' to the first N motors - useful for unequal motors combinations
+     */
+    //#define MY_PRIVATE_MIXING "filename.h"
+    //#define LEAVE_HEADROOM_FOR_MOTORS 4 // leave room for gyro corrrections only for first 4 motors
 
 /*************************************************************************************************/
 /*****************                                                                 ***************/
@@ -609,6 +622,9 @@
        (allready done if the option RCAUXPIN12 is selected) */
     //#define DISABLE_POWER_PIN
 
+  /*******************************    OSD Switch    *************************************/
+    // This adds a box that can be interpreted by OSD in activation status (to switch on/off the overlay for instance)
+  //#define OSD_SWITCH
 
   /**************************************************************************************/
   /***********************                  TX-related         **************************/
@@ -723,7 +739,9 @@
       //#define LCD_LCD03       // I2C LCD: LCD03, which is i2c
       //#define OLED_I2C_128x64 // I2C LCD: OLED http://www.multiwii.com/forum/viewtopic.php?f=7&t=1350
 
-    /******************************   Logo settings     ***********************************/
+    /******************************   Display settings   ***********************************/
+      #define LCD_SERIAL_PORT 0    // must be 0 on Pro Mini and single serial boards; Set to your choice on any Mega based board
+
       //#define SUPPRESS_OLED_I2C_128x64LOGO  // suppress display of OLED logo to save memory
 
     /* double font height for better readability. Reduces visible #lines by half.
