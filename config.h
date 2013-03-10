@@ -141,7 +141,8 @@
       //#define HK_MultiWii_SE_V2  // Hobbyking board with MPU6050 + HMC5883L + BMP085
       //#define HK_MultiWii_328P   // Also labeled "Hobbybro" on the back.  ITG3205 + BMA180 + BMP085 + NMC5583L + DSM2 Connector (Spektrum Satellite)  
       //#define RCNet_FC           // RCNet FC with MPU6050 and MS561101BA  http://www.rcnet.com
-      //#define FLYDU_ULTRA   // MEGA+10DOF+MT3339 FC
+      //#define RCNet_FC_GPS       // RCNet FC with MPU6050 + MS561101BA + HMC5883L + UBLOX GPS http://www.rcnet.com
+      //#define FLYDU_ULTRA        // MEGA+10DOF+MT3339 FC
 
       
     /***************************    independent sensors    ********************************/
@@ -780,9 +781,8 @@
     //#define LCD_TELEMETRY_AUTO "123452679" // pages 1 to 9 in ascending order
     //#define LCD_TELEMETRY_AUTO  "212232425262729" // strong emphasis on page 2
 
-    /* manual stepping sequence;
-       First page of the sequence gets loaded at startup to allow non-interactive display */
-    //#define LCD_TELEMETRY_STEP "0123456789" // should contain a 0 to allow switching off. First page of sequence gets loaded upon startup
+    /* manual stepping sequence; first page of the sequence gets loaded at startup to allow non-interactive display */
+    //#define LCD_TELEMETRY_STEP "0123456789" // should contain a 0 to allow switching off.
 
     /* optional exclude some functionality - uncomment to suppress some unwanted telemetry pages */
     //#define SUPPRESS_TELEMETRY_PAGE_1
