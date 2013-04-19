@@ -15,7 +15,7 @@ March  2013     V2.2
 
 
 #include <avr/pgmspace.h>
-#define  VERSION  220
+#define  VERSION  221
 
 /*********** RC alias *****************/
 enum rc {
@@ -217,17 +217,42 @@ static uint16_t cycleTime = 0;     // this is the number in micro second to achi
 static uint16_t calibratingA = 0;  // the calibration is done in the main loop. Calibrating decreases at each cycle down to 0, then we enter in a normal mode.
 static uint16_t calibratingB = 0;  // baro calibration = get new ground pressure value
 static uint16_t calibratingG;
-static uint16_t acc_1G;            // this is the 1G measured acceleration
-static uint16_t acc_25deg;
-static int16_t  gyroADC[3],accADC[3],accSmooth[3],magADC[3];
-static int16_t  heading,magHold,headFreeModeHold; // [-180;+180]
-static uint8_t  vbat;                   // battery voltage in 0.1V steps
+static int16_t  magHold,headFreeModeHold; // [-180;+180]
 static uint8_t  vbatMin = VBATNOMINAL;  // lowest battery voltage in 0.1V steps
 static uint8_t  rcOptions[CHECKBOXITEMS];
-static int32_t  BaroAlt,EstAlt,AltHold; // in cm
+static int32_t  BaroAlt,AltHold; // in cm
 static int16_t  BaroPID = 0;
 static int16_t  errorAltitudeI = 0;
-static int16_t  vario = 0;              // variometer in cm/s
+
+// **************
+// gyro+acc IMU
+// **************
+static int16_t gyroZero[3] = {0,0,0};
+static int16_t angle[2]    = {0,0};  // absolute angle inclination in multiple of 0.1 degree    180 deg = 1800
+
+static struct {
+  int16_t  accSmooth[3];
+  int16_t  gyroData[3];
+  int16_t  magADC[3];
+  int16_t  gyroADC[3];
+  int16_t  accADC[3];
+} imu;
+
+static struct {
+  uint8_t  vbat;               // battery voltage in 0.1V steps
+  uint16_t intPowerMeterSum;
+  uint16_t rssi;               // range: [0;1023]
+} analog;
+
+static struct {
+  int32_t  EstAlt;             // in cm
+  int16_t  vario;              // variometer in cm/s
+} alt;
+
+static struct {
+  int16_t angle[2];
+  int16_t heading;              // variometer in cm/s
+} att;
 
 #if defined(ARMEDTIMEWARNING)
   static uint32_t  ArmedTimeWarningMicroSeconds = 0;
@@ -261,15 +286,25 @@ struct flags_struct {
 #if defined(LOG_VALUES) || defined(LCD_TELEMETRY)
   static uint16_t cycleTimeMax = 0;       // highest ever cycle timen
   static uint16_t cycleTimeMin = 65535;   // lowest ever cycle timen
-  static uint16_t powerMax = 0;           // highest ever current;
-  static int32_t  BAROaltMax;         // maximum value
+  static int32_t  BAROaltMax;             // maximum value
+  static uint8_t  GPS_speedMaxKmh = 0;    // maximum speed from gps in km/h
+  static uint16_t powerValueMaxMAH = 0;
 #endif
-#if defined(LOG_VALUES) || defined(LCD_TELEMETRY) || defined(ARMEDTIMEWARNING)  || defined(LOG_PERMANENT)
+#if defined(LOG_VALUES) || defined(LCD_TELEMETRY) || defined(ARMEDTIMEWARNING) || defined(LOG_PERMANENT)
   static uint32_t armedTime = 0;
 #endif
 
 static int16_t  i2c_errors_count = 0;
 static int16_t  annex650_overrun_count = 0;
+
+
+
+#if defined(THROTTLE_ANGLE_CORRECTION)
+  static int16_t throttleAngleCorrection = 0;	// correction of throttle in lateral wind,
+  static int8_t  cosZ = 100;					// cos(angleZ)*100
+#endif
+
+
 
 // **********************
 //Automatic ACC Offset Calibration
@@ -285,14 +320,14 @@ static int16_t  annex650_overrun_count = 0;
 // **********************
 // power meter
 // **********************
-#if defined(POWERMETER)
+#if defined(POWERMETER) || ( defined(LOG_VALUES) && (LOG_VALUES >= 3) )
 #define PMOTOR_SUM 8                     // index into pMeter[] for sum
   static uint32_t pMeter[PMOTOR_SUM + 1];  // we use [0:7] for eight motors,one extra for sum
   static uint8_t pMeterV;                  // dummy to satisfy the paramStruct logic in ConfigurationLoop()
   static uint32_t pAlarm;                  // we scale the eeprom value from [0:255] to this value we can directly compare to the sum in pMeter[6]
   static uint16_t powerValue = 0;          // last known current
 #endif
-static uint16_t intPowerMeterSum, intPowerTrigger1;
+static uint16_t intPowerTrigger1;
 
 // **********************
 // telemetry
@@ -330,9 +365,8 @@ volatile int16_t failsafeCnt = 0;
 
 static int16_t rcData[RC_CHANS];    // interval [1000;2000]
 static int16_t rcCommand[4];        // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW 
-static int16_t lookupPitchRollRC[6];// lookup table for expo & RC rate PITCH+ROLL
+static int16_t lookupPitchRollRC[5];// lookup table for expo & RC rate PITCH+ROLL
 static int16_t lookupThrottleRC[11];// lookup table for expo & mid THROTTLE
-static uint16_t rssi;               // range: [0;1023]
 
 #if defined(SPEKTRUM)
   volatile uint8_t  spekFrameFlags;
@@ -343,21 +377,14 @@ static uint16_t rssi;               // range: [0;1023]
   static uint8_t pot_P,pot_I; // OpenLRS onboard potentiometers for P and I trim or other usages
 #endif
 
-// **************
-// gyro+acc IMU
-// **************
-static int16_t gyroData[3] = {0,0,0};
-static int16_t gyroZero[3] = {0,0,0};
-static int16_t angle[2]    = {0,0};  // absolute angle inclination in multiple of 0.1 degree    180 deg = 1800
 
 // *************************
 // motor and servo functions
 // *************************
 static int16_t axisPID[3];
-static int16_t motor[NUMBER_MOTOR];
-#if defined(SERVO)
-  static int16_t servo[8] = {1500,1500,1500,1500,1500,1500,1500,1500};
-#endif
+static int16_t motor[8];
+static int16_t servo[8] = {1500,1500,1500,1500,1500,1500,1500,1500};
+static uint16_t motorTogglesByte=0; // Is it Possible to change to uint8_t ?... 
 
 // ************************
 // EEPROM Layout definition
@@ -368,13 +395,26 @@ static struct {
   uint8_t currentSet;
   int16_t accZero[3];
   int16_t magZero[3];
+  uint16_t flashsum; 
   uint8_t checksum;      // MUST BE ON LAST POSITION OF STRUCTURE ! 
 } global_conf;
 
+struct pid_ {
+  uint8_t P8;
+  uint8_t I8;
+  uint8_t D8;
+};
+
+struct servo_conf_ {  // this is a generic way to configure a servo, every multi type with a servo should use it
+  int16_t min;        // minimum value, must be more than 1020 with the current implementation
+  int16_t max;        // maximum value, must be less than 2000 with the current implementation
+  int16_t middle;     // default should be 1500
+  int8_t  rate;       // range [-100;+100] ; can be used to ajust a rate 0-100% and a direction
+};
 
 static struct {
-  uint8_t checkNewConf;
-  uint8_t P8[PIDITEMS], I8[PIDITEMS], D8[PIDITEMS];
+//  uint8_t checkNewConf;   not used anymore, should be removed
+  pid_    pid[PIDITEMS];
   uint8_t rcRate8;
   uint8_t rcExpo8;
   uint8_t rollPitchRate;
@@ -385,6 +425,10 @@ static struct {
   int16_t angleTrim[2];
   uint16_t activate[CHECKBOXITEMS];
   uint8_t powerTrigger1;
+  #if defined(MAG)
+    int16_t mag_decliniation;
+  #endif
+  servo_conf_ servoConf[8];
   #ifdef FLYING_WING
     uint16_t wing_left_mid;
     uint16_t wing_right_mid;
@@ -406,16 +450,12 @@ static struct {
     uint8_t vbatlevel_warn1;
     uint8_t vbatlevel_warn2;
     uint8_t vbatlevel_crit;
-    uint8_t no_vbat;
   #endif
   #ifdef POWERMETER
     uint16_t psensornull;
     uint16_t pleveldivsoft;
     uint16_t pleveldiv;
     uint8_t pint2ma;
-  #endif
-  #ifdef CYCLETIME_FIXATED
-    uint16_t cycletime_fixated;
   #endif
   #ifdef MMGYRO
     uint8_t mmgyro;
@@ -449,6 +489,7 @@ static struct {
 // **********************
 // GPS common variables
 // **********************
+  static int16_t  GPS_angle[2] = { 0, 0};                      // the angles that must be applied for GPS correction
   static int32_t  GPS_coord[2];
   static int32_t  GPS_home[2];
   static int32_t  GPS_hold[2];
@@ -458,7 +499,6 @@ static struct {
   static uint16_t GPS_altitude;                                // GPS altitude      - unit: meter
   static uint16_t GPS_speed;                                   // GPS speed         - unit: cm/s
   static uint8_t  GPS_update = 0;                              // a binary toogle to distinct a GPS position update
-  static int16_t  GPS_angle[2] = { 0, 0};                      // the angles that must be applied for GPS correction
   static uint16_t GPS_ground_course = 0;                       //                   - unit: degree*10
   static uint8_t  GPS_Present = 0;                             // Checksum from Gps serial
   static uint8_t  GPS_Enable  = 0;
@@ -493,7 +533,7 @@ static struct {
   #define NAV_MODE_POSHOLD       1
   #define NAV_MODE_WP            2
   static uint8_t nav_mode = NAV_MODE_NONE; // Navigation mode
- 
+
   static uint8_t alarmArray[16];           // array
  
 #if BARO
@@ -507,19 +547,18 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
   uint16_t tmp,tmp2;
   uint8_t axis,prop1,prop2;
 
-  #if defined(TELEMETRY_FRSKY) // new
+
+ #if defined(TELEMETRY_FRSKY) // new
      telemetry_frsky();
   #endif
-  
-  #define BREAKPOINT 1500
+
   // PITCH & ROLL only dynamic PID adjustemnt,  depending on throttle value
-  if (rcData[THROTTLE]<BREAKPOINT) {
-    prop2 = 100;
-  } else {
+  prop2 = 128; // prop2 was 100, is 128 now
+  if (rcData[THROTTLE]>1500) { // breakpoint is fix: 1500
     if (rcData[THROTTLE]<2000) {
-      prop2 = 100 - (uint16_t)conf.dynThrPID*(rcData[THROTTLE]-BREAKPOINT)/(2000-BREAKPOINT);
+      prop2 -=  ((uint16_t)conf.dynThrPID*(rcData[THROTTLE]-1500)>>9); //  /512 instead of /500
     } else {
-      prop2 = 100 - conf.dynThrPID;
+      prop2 -=  conf.dynThrPID;
     }
   }
 
@@ -530,16 +569,16 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
       else { tmp=0; }
     #endif
     if(axis!=2) { //ROLL & PITCH
-      tmp2 = tmp/100;
-      rcCommand[axis] = lookupPitchRollRC[tmp2] + (tmp-tmp2*100) * (lookupPitchRollRC[tmp2+1]-lookupPitchRollRC[tmp2]) / 100;
-      prop1 = 100-(uint16_t)conf.rollPitchRate*tmp/500;
-      prop1 = (uint16_t)prop1*prop2/100;
+      tmp2 = tmp>>7; // 500/128 = 3.9  => range [0;3]
+      rcCommand[axis] = lookupPitchRollRC[tmp2] + ((tmp-(tmp2<<7)) * (lookupPitchRollRC[tmp2+1]-lookupPitchRollRC[tmp2])>>7);
+      prop1 = 128-((uint16_t)conf.rollPitchRate*tmp>>9); // prop1 was 100, is 128 now -- and /512 instead of /500
+      prop1 = (uint16_t)prop1*prop2>>7; // prop1: max is 128   prop2: max is 128   result prop1: max is 128
     } else {      // YAW
       rcCommand[axis] = tmp;
-      prop1 = 100-(uint16_t)conf.yawRate*tmp/500;
+      prop1 = 128-((uint16_t)conf.yawRate*tmp>>9); // prop1 was 100, is 128 now -- and /512 instead of /500
     }
-    dynP8[axis] = (uint16_t)conf.P8[axis]*prop1/100;
-    dynD8[axis] = (uint16_t)conf.D8[axis]*prop1/100;
+    dynP8[axis] = (uint16_t)conf.pid[axis].P8*prop1>>7; // was /100, is /128 now
+    dynD8[axis] = (uint16_t)conf.pid[axis].D8*prop1>>7; // was /100, is /128 now
     if (rcData[axis]<MIDRC) rcCommand[axis] = -rcCommand[axis];
   }
   tmp = constrain(rcData[THROTTLE],MINCHECK,2000);
@@ -548,7 +587,7 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
   rcCommand[THROTTLE] = lookupThrottleRC[tmp2] + (tmp-tmp2*100) * (lookupThrottleRC[tmp2+1]-lookupThrottleRC[tmp2]) / 100; // [0;1000] -> expo -> [conf.minthrottle;MAXTHROTTLE]
 
   if(f.HEADFREE_MODE) { //to optimize
-    float radDiff = (heading - headFreeModeHold) * 0.0174533f; // where PI/180 ~= 0.0174533
+    float radDiff = (att.heading - headFreeModeHold) * 0.0174533f; // where PI/180 ~= 0.0174533
     float cosDiff = cos(radDiff);
     float sinDiff = sin(radDiff);
     int16_t rcCommand_PITCH = rcCommand[PITCH]*cosDiff + rcCommand[ROLL]*sinDiff;
@@ -556,46 +595,84 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
     rcCommand[PITCH] = rcCommand_PITCH;
   }
 
+  // query at most one multiplexed analog channel per MWii cycle
+  static uint8_t analogReader =0;
+  switch (analogReader++%3) {
   #if defined(POWERMETER_HARD)
-    uint16_t pMeterRaw;               // used for current reading
-    static uint16_t psensorTimer = 0;
-    if (! (++psensorTimer % PSENSORFREQ)) {
-      pMeterRaw =  analogRead(PSENSORPIN);
-      //lcdprint_int16(pMeterRaw); LCDcrlf();
-      powerValue = ( conf.psensornull > pMeterRaw ? conf.psensornull - pMeterRaw : pMeterRaw - conf.psensornull); // do not use abs(), it would induce implicit cast to uint and overrun
-      if ( powerValue < 333) {  // only accept reasonable values. 333 is empirical
-      #ifdef LCD_TELEMETRY
-        if (powerValue > powerMax) powerMax = powerValue;
-      #endif
-      } else {
-        powerValue = 333;
-      }        
-      pMeter[PMOTOR_SUM] += (uint32_t) powerValue;
-    }
-  #endif
-  #if defined(BUZZER)
-    #if defined(VBAT)
-      static uint8_t vbatTimer = 0;
-      static uint8_t ind = 0;
-      uint16_t vbatRaw = 0;
-      static uint16_t vbatRawArray[8];
-      if (! (++vbatTimer % VBATFREQ)) {
-        vbatRawArray[(ind++)%8] = analogRead(V_BATPIN);
-        for (uint8_t i=0;i<8;i++) vbatRaw += vbatRawArray[i];
-        vbat = (vbatRaw*2) / conf.vbatscale; // result is Vbatt in 0.1V steps
-      }
+  case 0:
+  {
+    uint16_t pMeterRaw; // used for current reading
+    static uint32_t lastRead = currentTime;
+    static uint8_t ind = 0;
+    static uint16_t pvec[PSENSOR_SMOOTH], psum;
+    uint16_t p =  analogRead(PSENSORPIN);
+    //lcdprint_int16(p); LCDcrlf();
+    //debug[0] = p;
+    #if PSENSOR_SMOOTH != 1
+      psum += p;
+      psum -= pvec[ind];
+      pvec[ind++] = p;
+      ind %= PSENSOR_SMOOTH;
+      p = psum / PSENSOR_SMOOTH;
     #endif
-    alarmHandler(); // external buzzer routine that handles buzzer events globally now
-  #endif  
+    powerValue = ( conf.psensornull > p ? conf.psensornull - p : p - conf.psensornull); // do not use abs(), it would induce implicit cast to uint and overrun
+    if ( powerValue > 307) powerValue = 307;  // only accept reasonable values. 307 is empirical
+    pMeter[PMOTOR_SUM] += ((currentTime-lastRead) * (uint32_t)(powerValue*conf.pint2ma))/100000; // [10 mA * msec]
+    lastRead = currentTime;
+    break;
+  }
+  #endif // POWERMETER_HARD
 
+  #if defined(VBAT)
+  case 1:
+  {
+      static uint8_t ind = 0;
+      static uint16_t vvec[VBAT_SMOOTH], vsum;
+      uint16_t v = analogRead(V_BATPIN);
+      //debug[1] = v;
+      #if VBAT_SMOOTH == 1
+        analog.vbat = (v<<4) / conf.vbatscale; // result is Vbatt in 0.1V steps
+      #else
+        vsum += v;
+        vsum -= vvec[ind];
+        vvec[ind++] = v;
+        ind %= VBAT_SMOOTH;
+        #if VBAT_SMOOTH == 16
+          analog.vbat = vsum / conf.vbatscale; // result is Vbatt in 0.1V steps
+        #elif VBAT_SMOOTH < 16
+          analog.vbat = (vsum * (16/VBAT_SMOOTH)) / conf.vbatscale; // result is Vbatt in 0.1V steps
+        #else
+          analog.vbat = ((vsum /VBAT_SMOOTH) * 16) / conf.vbatscale; // result is Vbatt in 0.1V steps
+        #endif
+      #endif
+      break;
+  }
+  #endif // VBAT
   #if defined(RX_RSSI)
-    static uint8_t sig = 0;
-    uint16_t rssiRaw = 0;
-    static uint16_t rssiRawArray[8];
-    rssiRawArray[(sig++)%8] = analogRead(RX_RSSI_PIN);
-    for (uint8_t i=0;i<8;i++) rssiRaw += rssiRawArray[i];
-    rssi = rssiRaw / 8;       
+  case 2:
+  {
+    static uint8_t ind = 0;
+    static uint16_t rvec[RSSI_SMOOTH], rsum;
+    uint16_t r = analogRead(RX_RSSI_PIN);
+    #if RSSI_SMOOTH == 1
+      analog.rssi = r;
+    #else
+      rsum += r;
+      rsum -= rvec[ind];
+      rvec[ind++] = r;
+      ind %= RSSI_SMOOTH;
+      r = rsum / RSSI_SMOOTH;
+      analog.rssi = r;
+    #endif
+    break;
+  }
   #endif
+  } // end of switch()
+
+  #if defined(BUZZER)
+    alarmHandler(); // external buzzer routine that handles buzzer events globally now
+  #endif
+
 
   if ( (calibratingA>0 && ACC ) || (calibratingG>0) ) { // Calibration phasis
     LEDPIN_TOGGLE;
@@ -636,7 +713,7 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
   #endif
 
   #if defined(POWERMETER)
-    intPowerMeterSum = (pMeter[PMOTOR_SUM]/conf.pleveldiv);
+    analog.intPowerMeterSum = (pMeter[PMOTOR_SUM]/conf.pleveldiv);
     intPowerTrigger1 = conf.powerTrigger1 * PLEVELSCALE; 
   #endif
 
@@ -683,7 +760,7 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
       armedTime += (uint32_t)cycleTime;
     #endif
     #if defined(VBAT)
-      if ( (vbat > conf.no_vbat) && (vbat < vbatMin) ) vbatMin = vbat;
+      if ( (analog.vbat > NO_VBAT) && (analog.vbat < vbatMin) ) vbatMin = analog.vbat;
     #endif
     #ifdef LCD_TELEMETRY
       #if BARO
@@ -711,16 +788,37 @@ void setup() {
   STABLEPIN_PINMODE;
   POWERPIN_OFF;
   initOutput();
+  readGlobalSet();
+  #if defined(MEGA)
+    uint16_t i = 65000;                             // only first ~64K for mega board due to pgm_read_byte limitation
+  #else
+    uint16_t i = 32000;
+  #endif
+  uint16_t flashsum = 0;
+  uint8_t pbyt;
+  while(i--) {
+    pbyt =  pgm_read_byte(i);        // calculate flash checksum
+    flashsum += pbyt;
+    flashsum ^= (pbyt<<8);
+  }
   #ifdef MULTIPLE_CONFIGURATION_PROFILES
-    for(global_conf.currentSet=0; global_conf.currentSet<3; global_conf.currentSet++) {  // check all settings integrity
-      readEEPROM();
-    }
+    global_conf.currentSet=2;
   #else
     global_conf.currentSet=0;
-    readEEPROM();
   #endif
-  readGlobalSet();
-  readEEPROM();                                    // load current setting data
+  while(1) {                                                    // check settings integrity
+    if(readEEPROM()) {                                          // check current setting integrity
+      if(flashsum != global_conf.flashsum) update_constants();  // update constants if firmware is changed and integrity is OK
+    }
+    if(global_conf.currentSet == 0) break;                      // all checks is done
+    global_conf.currentSet--;                                   // next setting for check
+  }
+  readGlobalSet();                            // reload global settings for get last profile number
+  if(flashsum != global_conf.flashsum) {
+    global_conf.flashsum = flashsum;          // new flash sum
+    writeGlobalSet(1);                        // update flash sum in global config
+  }
+  readEEPROM();                               // load setting data from last used profile
   blinkLED(2,40,global_conf.currentSet+1);          
   configureReceiver();
   #if defined (PILOTLAMP) 
@@ -740,13 +838,12 @@ void setup() {
   calibratingG = 512;
   calibratingB = 200;  // 10 seconds init_delay + 200 * 25 ms = 15 seconds before ground pressure settles
   #if defined(POWERMETER)
-    for(uint8_t i=0;i<=PMOTOR_SUM;i++)
-      pMeter[i]=0;
+    for(uint8_t j=0; j<=PMOTOR_SUM; j++) pMeter[j]=0;
   #endif
   /************************************/
   #if defined(GPS_SERIAL)
     GPS_SerialInit();
-    for(uint8_t i=0;i<=5;i++){
+    for(uint8_t j=0;j<=5;j++){
       GPS_NewData(); 
       LEDPIN_ON
       delay(20);
@@ -780,7 +877,9 @@ void setup() {
   #ifdef LANDING_LIGHTS_DDR
     init_landing_lights();
   #endif
-  ADCSRA |= _BV(ADPS2) ; ADCSRA &= ~_BV(ADPS1); ADCSRA &= ~_BV(ADPS0); // this speeds up analogRead without loosing too much resolution: http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1208715493/11
+  #ifdef FASTER_ANALOG_READS
+    ADCSRA |= _BV(ADPS2) ; ADCSRA &= ~_BV(ADPS1); ADCSRA &= ~_BV(ADPS0); // this speeds up analogRead without loosing too much resolution: http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1208715493/11
+  #endif
   #if defined(LED_FLASHER)
     init_led_flasher();
     led_flasher_set_sequence(LED_FLASHER_SEQUENCE);
@@ -810,13 +909,19 @@ void go_arm() {
     ) {
     if(!f.ARMED) { // arm now!
       f.ARMED = 1;
-      headFreeModeHold = heading;
+      headFreeModeHold = att.heading;
       #if defined(VBAT)
-        if (vbat > conf.no_vbat) vbatMin = vbat;
+        if (analog.vbat > NO_VBAT) vbatMin = analog.vbat;
       #endif
       #ifdef LCD_TELEMETRY // reset some values when arming
         #if BARO
-           BAROaltMax = BaroAlt;
+          BAROaltMax = BaroAlt;
+        #endif
+        #if GPS
+          GPS_speedMaxKmh = 0;
+        #endif
+        #ifdef POWERMETER_HARD
+          powerValueMaxMAH = 0;
         #endif
       #endif
       #ifdef LOG_PERMANENT
@@ -844,26 +949,6 @@ void go_disarm() {
       writePLog();
     #endif
   }
-}
-void servos2Neutral() {
-  #ifdef TRI
-    servo[5] = 1500; // we center the yaw servo in conf mode
-    writeServos();
-  #endif
-  #ifdef FLYING_WING
-    servo[0]  = conf.wing_left_mid;
-    servo[1]  = conf.wing_right_mid;
-    writeServos();
-  #endif
-  #ifdef AIRPLANE
-    for(uint8_t i = 4; i<7 ;i++) servo[i] = 1500;
-    writeServos();
-  #endif
-  #ifdef HELICOPTER
-    servo[5] = YAW_CENTER;
-    servo[3] = servo[4] = servo[6] = 1500;
-    writeServos();
-  #endif
 }
 
 // ******** Main Loop *********
@@ -1082,7 +1167,7 @@ void loop () {
         if (rcOptions[BOXBARO]) {
             if (!f.BARO_MODE) {
               f.BARO_MODE = 1;
-              AltHold = EstAlt;
+              AltHold = alt.EstAlt;
               initialThrottleHold = rcCommand[THROTTLE];
               errorAltitudeI = 0;
               BaroPID=0;
@@ -1105,7 +1190,7 @@ void loop () {
       if (rcOptions[BOXMAG]) {
         if (!f.MAG_MODE) {
           f.MAG_MODE = 1;
-          magHold = heading;
+          magHold = att.heading;
         }
       } else {
         f.MAG_MODE = 0;
@@ -1114,11 +1199,16 @@ void loop () {
         if (!f.HEADFREE_MODE) {
           f.HEADFREE_MODE = 1;
         }
+	  #if defined(ADVANCED_HEADFREE)
+		if ((f.GPS_FIX && GPS_numSat >= 5) && (GPS_distanceToHome > ADV_HEADFREE_RANGE) ) {
+            if (GPS_directionToHome < 180)  {headFreeModeHold = GPS_directionToHome + 180;} else {headFreeModeHold = GPS_directionToHome - 180;}
+         }
+      #endif
       } else {
         f.HEADFREE_MODE = 0;
       }
       if (rcOptions[BOXHEADADJ]) {
-        headFreeModeHold = heading; // acquire new heading
+        headFreeModeHold = att.heading; // acquire new heading
       }
     #endif
     
@@ -1203,7 +1293,7 @@ void loop () {
       case 4:
         taskOrder++;
         #if SONAR
-          Sonar_update();debug[2] = sonarAlt;
+          Sonar_update(); //debug[2] = sonarAlt;
         #endif
         #ifdef LANDING_LIGHTS_DDR
           auto_switch_landing_lights();
@@ -1221,15 +1311,6 @@ void loop () {
   cycleTime = currentTime - previousTime;
   previousTime = currentTime;
 
-  #ifdef CYCLETIME_FIXATED
-    if (conf.cycletime_fixated) {
-      if ((micros()-timestamp_fixated)>conf.cycletime_fixated) {
-      } else {
-         while((micros()-timestamp_fixated)<conf.cycletime_fixated) ; // waste away
-      }
-      timestamp_fixated=micros();
-    }
-  #endif
   //***********************************
   //**** Experimental FlightModes *****
   //***********************************
@@ -1250,11 +1331,11 @@ void loop () {
  
   #if MAG
     if (abs(rcCommand[YAW]) <70 && f.MAG_MODE) {
-      int16_t dif = heading - magHold;
+      int16_t dif = att.heading - magHold;
       if (dif <= - 180) dif += 360;
       if (dif >= + 180) dif -= 360;
-      if ( f.SMALL_ANGLES_25 ) rcCommand[YAW] -= dif*conf.P8[PIDMAG]>>5;
-    } else magHold = heading;
+      if ( f.SMALL_ANGLES_25 ) rcCommand[YAW] -= dif*conf.pid[PIDMAG].P8>>5;
+    } else magHold = att.heading;
   #endif
 
   #if BARO && (!defined(SUPPRESS_BARO_ALTHOLD))
@@ -1267,7 +1348,7 @@ void loop () {
           rcCommand[THROTTLE] += (rcCommand[THROTTLE] > initialThrottleHold) ? -ALT_HOLD_THROTTLE_NEUTRAL_ZONE : ALT_HOLD_THROTTLE_NEUTRAL_ZONE;
         } else {
           if (isAltHoldChanged) {
-            AltHold = EstAlt;
+            AltHold = alt.EstAlt;
             isAltHoldChanged = 0;
           }
           rcCommand[THROTTLE] = initialThrottleHold + BaroPID;
@@ -1284,17 +1365,24 @@ void loop () {
           errorAltitudeI = 0;
           isAltHoldChanged = 1;
         } else if (isAltHoldChanged) {
-          AltHold = EstAlt;
+          AltHold = alt.EstAlt;
           isAltHoldChanged = 0;
         }
         rcCommand[THROTTLE] = initialThrottleHold + BaroPID;
       #endif
     }
   #endif
+
+  #if defined(THROTTLE_ANGLE_CORRECTION)
+    if(f.ANGLE_MODE || f.HORIZON_MODE) {
+       rcCommand[THROTTLE]+= throttleAngleCorrection;
+    }
+  #endif
+  
   #if GPS
     if ( (f.GPS_HOME_MODE || f.GPS_HOLD_MODE) && f.GPS_FIX_HOME ) {
-      float sin_yaw_y = sin(heading*0.0174532925f);
-      float cos_yaw_x = cos(heading*0.0174532925f);
+      float sin_yaw_y = sin(att.heading*0.0174532925f);
+      float cos_yaw_x = cos(att.heading*0.0174532925f);
       #if defined(NAV_SLEW_RATE)     
         nav_rated[LON]   += constrain(wrap_18000(nav[LON]-nav_rated[LON]),-NAV_SLEW_RATE,NAV_SLEW_RATE);
         nav_rated[LAT]   += constrain(wrap_18000(nav[LAT]-nav_rated[LAT]),-NAV_SLEW_RATE,NAV_SLEW_RATE);
@@ -1317,24 +1405,24 @@ void loop () {
   for(axis=0;axis<3;axis++) {
     if ((f.ANGLE_MODE || f.HORIZON_MODE) && axis<2 ) { // MODE relying on ACC
       // 50 degrees max inclination
-      errorAngle = constrain((rcCommand[axis]<<1) + GPS_angle[axis],-500,+500) - angle[axis] + conf.angleTrim[axis]; //16 bits is ok here
-      PTermACC = ((int32_t)errorAngle*conf.P8[PIDLEVEL])>>7;                          // 32 bits is needed for calculation: errorAngle*P8[PIDLEVEL] could exceed 32768   16 bits is ok for result
-      PTermACC = constrain(PTermACC,-conf.D8[PIDLEVEL]*5,+conf.D8[PIDLEVEL]*5);
+      errorAngle = constrain((rcCommand[axis]<<1) + GPS_angle[axis],-500,+500) - att.angle[axis] + conf.angleTrim[axis]; //16 bits is ok here
+      PTermACC = ((int32_t)errorAngle*conf.pid[PIDLEVEL].P8)>>7;                          // 32 bits is needed for calculation: errorAngle*P8[PIDLEVEL] could exceed 32768   16 bits is ok for result
+      PTermACC = constrain(PTermACC,-conf.pid[PIDLEVEL].D8*5,+conf.pid[PIDLEVEL].D8*5);
 
       errorAngleI[axis]     = constrain(errorAngleI[axis]+errorAngle,-10000,+10000);    // WindUp     //16 bits is ok here
-      ITermACC              = ((int32_t)errorAngleI[axis]*conf.I8[PIDLEVEL])>>12;            // 32 bits is needed for calculation:10000*I8 could exceed 32768   16 bits is ok for result
+      ITermACC              = ((int32_t)errorAngleI[axis]*conf.pid[PIDLEVEL].I8)>>12;            // 32 bits is needed for calculation:10000*I8 could exceed 32768   16 bits is ok for result
     }
     if ( !f.ANGLE_MODE || f.HORIZON_MODE || axis == 2 ) { // MODE relying on GYRO or YAW axis
-      if (abs(rcCommand[axis])<500) error =          (rcCommand[axis]<<6)/conf.P8[axis] ; // 16 bits is needed for calculation: 500*64 = 32000      16 bits is ok for result if P8>5 (P>0.5)
-                               else error = ((int32_t)rcCommand[axis]<<6)/conf.P8[axis] ; // 32 bits is needed for calculation
+      if (abs(rcCommand[axis])<500) error =          (rcCommand[axis]<<6)/conf.pid[axis].P8 ; // 16 bits is needed for calculation: 500*64 = 32000      16 bits is ok for result if P8>5 (P>0.5)
+                               else error = ((int32_t)rcCommand[axis]<<6)/conf.pid[axis].P8 ; // 32 bits is needed for calculation
 
-      error -= gyroData[axis];
+      error -= imu.gyroData[axis];
 
       PTermGYRO = rcCommand[axis];
       
       errorGyroI[axis]  = constrain(errorGyroI[axis]+error,-16000,+16000);         // WindUp   16 bits is ok here
-      if (abs(gyroData[axis])>640) errorGyroI[axis] = 0;
-      ITermGYRO = ((errorGyroI[axis]>>7)*conf.I8[axis])>>6;                        // 16 bits is ok here 16000/125 = 128 ; 128*250 = 32000
+      if (abs(imu.gyroData[axis])>640) errorGyroI[axis] = 0;
+      ITermGYRO = ((errorGyroI[axis]>>7)*conf.pid[axis].I8)>>6;                        // 16 bits is ok here 16000/125 = 128 ; 128*250 = 32000
     }
     if ( f.HORIZON_MODE && axis<2) {
       PTerm = ((int32_t)PTermACC*(512-prop) + (int32_t)PTermGYRO*prop)>>9;         // the real factor should be 500, but 512 is ok
@@ -1349,10 +1437,10 @@ void loop () {
       }
     }
 
-    PTerm -= ((int32_t)gyroData[axis]*dynP8[axis])>>6; // 32 bits is needed for calculation   
+    PTerm -= ((int32_t)imu.gyroData[axis]*dynP8[axis])>>6; // 32 bits is needed for calculation   
 
-    delta          = gyroData[axis] - lastGyro[axis];  // 16 bits is ok here, the dif between 2 consecutive gyro reads is limited to 800
-    lastGyro[axis] = gyroData[axis];
+    delta          = imu.gyroData[axis] - lastGyro[axis];  // 16 bits is ok here, the dif between 2 consecutive gyro reads is limited to 800
+    lastGyro[axis] = imu.gyroData[axis];
     deltaSum       = delta1[axis]+delta2[axis]+delta;
     delta2[axis]   = delta1[axis];
     delta1[axis]   = delta;
