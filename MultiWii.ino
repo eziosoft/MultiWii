@@ -321,7 +321,7 @@ static int16_t  annex650_overrun_count = 0;
 // power meter
 // **********************
 #if defined(POWERMETER) || ( defined(LOG_VALUES) && (LOG_VALUES >= 3) )
-#define PMOTOR_SUM 8                     // index into pMeter[] for sum
+  #define PMOTOR_SUM 8                     // index into pMeter[] for sum
   static uint32_t pMeter[PMOTOR_SUM + 1];  // we use [0:7] for eight motors,one extra for sum
   static uint8_t pMeterV;                  // dummy to satisfy the paramStruct logic in ConfigurationLoop()
   static uint32_t pAlarm;                  // we scale the eeprom value from [0:255] to this value we can directly compare to the sum in pMeter[6]
@@ -452,10 +452,10 @@ static struct {
     uint8_t vbatlevel_crit;
   #endif
   #ifdef POWERMETER
-    uint16_t psensornull;
-    uint16_t pleveldivsoft;
-    uint16_t pleveldiv;
     uint8_t pint2ma;
+  #endif
+  #ifdef POWERMETER_HARD
+    uint16_t psensornull;
   #endif
   #ifdef MMGYRO
     uint8_t mmgyro;
@@ -713,7 +713,7 @@ void annexCode() { // this code is excetuted at each loop and won't interfere wi
   #endif
 
   #if defined(POWERMETER)
-    analog.intPowerMeterSum = (pMeter[PMOTOR_SUM]/conf.pleveldiv);
+    analog.intPowerMeterSum = (pMeter[PMOTOR_SUM]/PLEVELDIV);
     intPowerTrigger1 = conf.powerTrigger1 * PLEVELSCALE; 
   #endif
 
@@ -789,35 +789,37 @@ void setup() {
   POWERPIN_OFF;
   initOutput();
   readGlobalSet();
-  #if defined(MEGA)
-    uint16_t i = 65000;                             // only first ~64K for mega board due to pgm_read_byte limitation
-  #else
-    uint16_t i = 32000;
-  #endif
-  uint16_t flashsum = 0;
-  uint8_t pbyt;
-  while(i--) {
-    pbyt =  pgm_read_byte(i);        // calculate flash checksum
-    flashsum += pbyt;
-    flashsum ^= (pbyt<<8);
-  }
-  #ifdef MULTIPLE_CONFIGURATION_PROFILES
-    global_conf.currentSet=2;
-  #else
-    global_conf.currentSet=0;
-  #endif
-  while(1) {                                                    // check settings integrity
-    if(readEEPROM()) {                                          // check current setting integrity
-      if(flashsum != global_conf.flashsum) update_constants();  // update constants if firmware is changed and integrity is OK
+  #ifndef NO_FLASH_CHECK
+    #if defined(MEGA)
+      uint16_t i = 65000;                             // only first ~64K for mega board due to pgm_read_byte limitation
+    #else
+      uint16_t i = 32000;
+    #endif
+    uint16_t flashsum = 0;
+    uint8_t pbyt;
+    while(i--) {
+      pbyt =  pgm_read_byte(i);        // calculate flash checksum
+      flashsum += pbyt;
+      flashsum ^= (pbyt<<8);
     }
-    if(global_conf.currentSet == 0) break;                      // all checks is done
-    global_conf.currentSet--;                                   // next setting for check
-  }
-  readGlobalSet();                            // reload global settings for get last profile number
-  if(flashsum != global_conf.flashsum) {
-    global_conf.flashsum = flashsum;          // new flash sum
-    writeGlobalSet(1);                        // update flash sum in global config
-  }
+    #ifdef MULTIPLE_CONFIGURATION_PROFILES
+      global_conf.currentSet=2;
+    #else
+      global_conf.currentSet=0;
+    #endif
+    while(1) {                                                    // check settings integrity
+      if(readEEPROM()) {                                          // check current setting integrity
+        if (flashsum != global_conf.flashsum) update_constants();  // update constants if firmware is changed and integrity is OK
+      }
+      if(global_conf.currentSet == 0) break;                      // all checks is done
+      global_conf.currentSet--;                                   // next setting for check
+    }
+    readGlobalSet();                            // reload global settings for get last profile number
+    if(flashsum != global_conf.flashsum) {
+      global_conf.flashsum = flashsum;          // new flash sum
+      writeGlobalSet(1);                        // update flash sum in global config
+    }
+  #endif
   readEEPROM();                               // load setting data from last used profile
   blinkLED(2,40,global_conf.currentSet+1);          
   configureReceiver();

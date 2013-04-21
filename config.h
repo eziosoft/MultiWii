@@ -12,6 +12,7 @@
  * 5 - ALTERNATE SETUP - select alternate RX (SBUS, PPM, etc.), alternate ESC-range, etc. here
  * 6 - OPTIONAL FEATURES - enable nice to have features here (FlightModes, LCD, telemetry, battery monitor etc.)
  * 7 - TUNING & DEVELOPER - if you know what you are doing; you have been warned
+ *     - (ESCs calibration, Dynamic Motor/Prop Balancing, Diagnostics,Memory savings.....)
  */
 
 /* Notes:
@@ -837,7 +838,7 @@
   /********************************************************************/
   /****                             Buzzer                         ****/
   /********************************************************************/
-    //#define BUZZER
+    #define BUZZER
     #define RCOPTIONSBEEP         // uncomment this if you want the buzzer to beep at any rcOptions change on channel Aux1 to Aux4
     //#define ARMEDTIMEWARNING 330  // (*) Trigger an alarm after a certain time of being armed [s] to save you lipo (if your TX does not have a countdown)
     //#define PILOTLAMP             //Uncomment if you are using a X-Arcraft Pilot Lamp
@@ -871,15 +872,11 @@
        2 - soft: - (good results +-5% for plush and mystery ESCs @ 2S and 3S, not good with SuperSimple ESC)    */
     #define POWERMETER_SOFT
     //#define POWERMETER_HARD
-    /* PLEVELSCALE is the step size you can use to set alarm */
-    #define PLEVELSCALE 50 // if you change this value for other granularity, you must search for comments in code to change accordingly
-    /* larger PLEVELDIV will get you smaller value for power (mAh equivalent) */
-    #define PLEVELDIV 5000 // (*) default for soft - if you lower PLEVELDIV, beware of overrun in uint32 pMeter
-    //#define PLEVELDIV 36000 // fixed value for hard - do not tune
-    #define PLEVELDIVSOFT PLEVELDIV // for soft always equal to PLEVELDIV
-    //#define PLEVELDIVSOFT 5000 // for hard fixed to 5000
-    #define PSENSORNULL 510 // (*) set to analogRead() value for zero current; for I=0A my sensor gives 1/2 Vss; that is approx 2.49Volt;
-    #define PINT2mA 132 // (*) one integer step on arduino analog translates to mA (example 4.9 / 37 * 1000
+    #define PSENSORNULL 510 /* (*) hard only: set to analogRead() value for zero current; for I=0A my sensor
+                                   gives 1/2 Vss; that is approx 2.49Volt; */
+    #define PINT2mA 132     /* (*) hard: one integer step on arduino analog translates to mA (example 4.9 / 37 * 1000) ;
+                                   soft: use fictional value, start with 100.
+                                   for hard and soft: larger PINT2mA will get you larger value for power (mAh equivalent) */
 
   /********************************************************************/
   /****           altitude hold                                    ****/
@@ -935,6 +932,9 @@
 
   /*************      Support multiple configuration profiles in EEPROM     ************/
     //#define MULTIPLE_CONFIGURATION_PROFILES
+
+  /*************      do no reset constants when change of flashed program is detected ***********/
+    //#define NO_FLASH_CHECK
 
 /*************************************************************************************************/
 /*****************                                                                 ***************/

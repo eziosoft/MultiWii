@@ -256,11 +256,11 @@ void send_Altitude(void)
 
   if (!f.ARMED)
   {
-    Start_altitude = EstAlt / 100;
+    Start_altitude = alt.EstAlt / 100;
   }
 
-  Datas_altitude_bp = (EstAlt / 100) - Start_altitude;
-  Datas_altitude_ap = (EstAlt % 100);
+  Datas_altitude_bp = (alt.EstAlt / 100) - Start_altitude;
+  Datas_altitude_ap = (alt.EstAlt % 100);
 
   sendDataHead(ID_Altitude_bp);
   write_FrSky16(Datas_altitude_bp);
@@ -324,7 +324,7 @@ void send_Course(void)
   uint16_t Datas_Course_bp;
   uint16_t Datas_Course_ap;
 
-  Datas_Course_bp = heading;
+  Datas_Course_bp = att.heading;
   Datas_Course_ap = 0;
 
   sendDataHead(ID_Course_bp);
@@ -357,20 +357,20 @@ void send_Time(void)
 // ACC
 void send_Accel(void)
 {
-  int16_t Datas_Acc_X;
-  int16_t Datas_Acc_Y;
-  int16_t Datas_Acc_Z;
-
-  Datas_Acc_X = ((float)accSmooth[0] / acc_1G) * 1000;
-  Datas_Acc_Y = ((float)accSmooth[1] / acc_1G) * 1000;
-  Datas_Acc_Z = ((float)accSmooth[2] / acc_1G) * 1000;
-
-  sendDataHead(ID_Acc_X);
-  write_FrSky16(Datas_Acc_X);
-  sendDataHead(ID_Acc_Y);
-  write_FrSky16(Datas_Acc_Y);
-  sendDataHead(ID_Acc_Z);
-  write_FrSky16(Datas_Acc_Z);      
+//  int16_t Datas_Acc_X;
+//  int16_t Datas_Acc_Y;
+//  int16_t Datas_Acc_Z;
+//
+//  Datas_Acc_X = ((float)accSmooth[0] / acc_1G) * 1000;
+//  Datas_Acc_Y = ((float)accSmooth[1] / acc_1G) * 1000;
+//  Datas_Acc_Z = ((float)accSmooth[2] / acc_1G) * 1000;
+//
+//  sendDataHead(ID_Acc_X);
+//  write_FrSky16(Datas_Acc_X);
+//  sendDataHead(ID_Acc_Y);
+//  write_FrSky16(Datas_Acc_Y);
+//  sendDataHead(ID_Acc_Z);
+//  write_FrSky16(Datas_Acc_Z);      
 }
 
 
@@ -423,7 +423,7 @@ void send_Voltage_ampere(void)
     uint16_t Datas_Voltage_vBat_bp;
     uint16_t Datas_Voltage_vBat_ap;   
     uint16_t voltage;
-    voltage = (vbat * 110) / 21;          
+    voltage = (analog.vbat * 110) / 21;          
     Datas_Voltage_vBat_bp = voltage / 100;
     Datas_Voltage_vBat_ap = ((voltage % 100) + 5) / 10;         
 

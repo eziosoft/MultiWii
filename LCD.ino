@@ -219,11 +219,11 @@ const uint8_t PROGMEM myFont[][5] = { // Refer to "Times New Roman" Font Databas
   { 0x17,0x08,0x34,0x2A,0x7D}, //   (119) /4 - 0x00BC Vulgar Fraction One Quarter
   { 0x17,0x08,0x04,0x6A,0x59}, //   (120) /2 - 0x00BD Vulgar Fraction One Half
   { 0x30,0x48,0x45,0x40,0x20}, //   (121)  ? - 0x00BE Inverted Question Mark
-  { 0x40,0x40,0x40,0x40,0x40}, //   (122)    - 0x00BF Bargraph - 0
-  { 0x7E,0x40,0x40,0x40,0x40}, //   (123)    - 0x00BF Bargraph - 1
-  { 0x7E,0x7E,0x40,0x40,0x40}, //   (124)    - 0x00BF Bargraph - 2
-  { 0x7E,0x7E,0x7E,0x40,0x40}, //   (125)    - 0x00BF Bargraph - 3
-  { 0x7E,0x7E,0x7E,0x7E,0x40}, //   (126)    - 0x00BF Bargraph - 4
+  { 0x42,0x00,0x42,0x00,0x42}, //   (122)    - 0x00BF Bargraph - 0
+  { 0x7E,0x42,0x00,0x42,0x00}, //   (123)    - 0x00BF Bargraph - 1
+  { 0x7E,0x7E,0x00,0x42,0x00}, //   (124)    - 0x00BF Bargraph - 2
+  { 0x7E,0x7E,0x7E,0x42,0x00}, //   (125)    - 0x00BF Bargraph - 3
+  { 0x7E,0x7E,0x7E,0x7E,0x00}, //   (126)    - 0x00BF Bargraph - 4
   { 0x7E,0x7E,0x7E,0x7E,0x7E}, //   (127)    - 0x00BF Bargraph - 5
 };
 
@@ -770,7 +770,7 @@ static lcd_type_desc_t LTU8 = {&__u8Fmt, &__u8Inc};
 static lcd_type_desc_t LTU16 = {&__u16Fmt, &__u16Inc};
 static lcd_type_desc_t LTS16 = {&__s16Fmt, &__s16Inc};
 static lcd_type_desc_t LPMM = {&__upMFmt, &__nullInc};
-static lcd_type_desc_t LPMS = {&__upSFmt, &__nullInc};
+//static lcd_type_desc_t LPMS = {&__upSFmt, &__nullInc};
 static lcd_type_desc_t LAUX1 = {&__uAuxFmt1, &__u16Inc};
 static lcd_type_desc_t LAUX2 = {&__uAuxFmt2, &__u16Inc};
 static lcd_type_desc_t LAUX3 = {&__uAuxFmt3, &__u16Inc};
@@ -798,7 +798,7 @@ static lcd_param_def_t __I = {&LTU8, 3, 1, 1};
 static lcd_param_def_t __D = {&LTU8, 0, 1, 1};
 static lcd_param_def_t __RC = {&LTU8, 2, 1, 1};
 static lcd_param_def_t __PM = {&LPMM, 1, 1, 0};
-static lcd_param_def_t __PS = {&LPMS, 1, 1, 0};
+//static lcd_param_def_t __PS = {&LPMS, 1, 1, 0};
 static lcd_param_def_t __PT = {&LTU8, 0, 1, 1};
 static lcd_param_def_t __VB = {&LTU8, 1, 1, 0};
 static lcd_param_def_t __L = {&LTU8, 0, 1, 0};
@@ -929,14 +929,10 @@ const char PROGMEM lcd_param_text106 [] = "BattW Crit";
 #ifdef POWERMETER
 const char PROGMEM lcd_param_text33 [] = "pmeter sum";
 const char PROGMEM lcd_param_text34 [] = "pAlarm /50"; // change text to represent PLEVELSCALE value
-#ifdef POWERMETER_HARD
-  const char PROGMEM lcd_param_text111 [] = "PM SENSOR0";
-  const char PROGMEM lcd_param_text114 [] = "PM INT2MA ";
-#endif
+const char PROGMEM lcd_param_text111 [] = "PM SENSOR0";
+const char PROGMEM lcd_param_text114 [] = "PM INT2MA ";
 //const char PROGMEM lcd_param_text112 [] = "PM DIVSOFT";
-#ifdef POWERMETER_SOFT
-  const char PROGMEM lcd_param_text113 [] = "PM DIV    ";
-#endif
+//const char PROGMEM lcd_param_text113 [] = "PM DIV    ";
 #endif
 #ifdef MMGYRO
 const char PROGMEM lcd_param_text121 [] = "MMGYRO    ";
@@ -1144,15 +1140,11 @@ PROGMEM const void * const lcd_param_ptr_table [] = {
 #endif
 #endif
 #ifdef POWERMETER
-  &lcd_param_text33, &pMeter[PMOTOR_SUM], &__PS,
+  &lcd_param_text33, &pMeter[PMOTOR_SUM], &__PM,
   &lcd_param_text34, &conf.powerTrigger1, &__PT,
+  &lcd_param_text114, &conf.pint2ma, &__PT,
   #ifdef POWERMETER_HARD
     &lcd_param_text111, &conf.psensornull, &__SE1,
-    &lcd_param_text114, &conf.pint2ma, &__PT,
-  #endif
-  //&lcd_param_text112, &conf.pleveldivsoft, &__SE, // gets computed automatically
-  #ifdef POWERMETER_SOFT
-    &lcd_param_text113, &conf.pleveldiv, &__SE,
   #endif
 #endif
 #if defined(ARMEDTIMEWARNING)
@@ -1280,23 +1272,19 @@ void __uAuxFmt(void * var, uint8_t mul, uint8_t dec, uint8_t aux) {
 #ifdef POWERMETER
   void __upMFmt(void * var, uint8_t mul, uint8_t dec) {
     uint32_t unit = *(uint32_t*)var;
-    // pmeter values need special treatment, too many digits to fit standard 8 bit scheme
-    unit = unit / conf.pleveldivsoft;// [0:1000] * 1000/3 samples per second(loop time) * 60 seconds *5 minutes -> [0:10000 e4] per motor
-                                // (that is full throttle for 5 minutes sampling with high sampling rate for wmp only)
-                                // times 6 for a maximum of 6 motors equals [0:60000 e4] for the sum
-                                // we are only interested in the big picture, so divide by 10.000
-    __u16Fmt(&unit, mul, dec);
+      unit /= PLEVELDIV;
+   __u16Fmt(&unit, mul, dec);
   }
 
-void __upSFmt(void * var, uint8_t mul, uint8_t dec) {
-  uint32_t unit = *(uint32_t*)var;
-#if defined(POWERMETER_SOFT)
-  unit = unit / conf.pleveldivsoft;
-#elif defined(POWERMETER_HARD)
-  unit = unit / conf.pleveldiv;
-#endif
-  __u16Fmt(&unit, mul, dec);
-}
+//void __upSFmt(void * var, uint8_t mul, uint8_t dec) {
+//  uint32_t unit = *(uint32_t*)var;
+//#if defined(POWERMETER_SOFT)
+//  unit = (unit * (uint32_t)conf.pint2ma) / 100000; // was = unit / conf.pleveldivsoft;
+//#elif defined(POWERMETER_HARD)
+//  unit = unit / PLEVELDIV;
+//#endif
+//  __u16Fmt(&unit, mul, dec);
+//}
 #endif
 
 static uint8_t lcdStickState[4];
@@ -1411,6 +1399,19 @@ void configurationLoop() {
       deft->type->inc((void*)pgm_read_word(&(lcd_param_ptr_table[(p * 3) + 1])), +(IsHigh(THROTTLE) ? 10 : 1) * deft->increment);
       if (p == 0) conf.pid[PITCH].P8 = conf.pid[ROLL].P8;
     }
+    #if defined(AIRPLANE) || defined(HELI_120_CCPM)
+      for(i=3; i<7; i++) servo[i] = MIDRC+conf.servoTrim[i];      
+      writeServos();    
+    #endif
+    #if defined(FLYING_WING)
+      servo[0]  = conf.wing_left_mid;
+      servo[1]  = conf.wing_right_mid;
+      writeServos();    
+    #endif
+    #if defined(TRI)
+      servo[TRI_SERVO-1] = conf.tri_yaw_middle;
+      writeServos();    
+    #endif     
   } // while (LCD == 1)
   blinkLED(20,30,1);
   #if defined(BUZZER)
@@ -1426,6 +1427,7 @@ void configurationLoop() {
   } else {
     strcpy_P(line1,PSTR("Aborting"));
     LCDprintChar(line1);
+    readEEPROM(); // roll back all values to last saved state
   }
   LCDsetLine(2);
   strcpy_P(line1,PSTR("Exit"));
@@ -1528,7 +1530,9 @@ void output_V() {
     line1[1] = digit100(analog.vbat);
     line1[2] = digit10(analog.vbat);
     line1[4] = digit1(analog.vbat);
-    if (analog.vbat < conf.vbatlevel_warn1) { LCDattributesReverse(); }
+    #ifndef OLED_I2C_128x64
+      if (analog.vbat < conf.vbatlevel_warn1) { LCDattributesReverse(); }
+    #endif
     LCDbar(7, (((analog.vbat - conf.vbatlevel_warn1)*100)/(VBATNOMINAL-conf.vbatlevel_warn1)) );
     LCDattributesOff(); // turn Reverse off for rest of display
     LCDprintChar(line1);
@@ -1542,7 +1546,9 @@ void output_Vmin() {
     line1[1] = digit100(vbatMin);
     line1[2] = digit10(vbatMin);
     line1[4] = digit1(vbatMin);
-    if (vbatMin < conf.vbatlevel_crit) { LCDattributesReverse(); }
+    #ifndef OLED_I2C_128x64
+      if (vbatMin < conf.vbatlevel_crit) { LCDattributesReverse(); }
+    #endif
     LCDbar(7, (vbatMin > conf.vbatlevel_crit ? (((vbatMin - conf.vbatlevel_crit)*100)/(VBATNOMINAL-conf.vbatlevel_crit)) : 0 ));
     LCDattributesOff();
     LCDprintChar(line1);
@@ -1558,7 +1564,9 @@ void output_mAh() {
     line1[5] = digit1(analog.intPowerMeterSum);
     if (conf.powerTrigger1) {
       int8_t v = 100 - ( analog.intPowerMeterSum/(uint16_t)conf.powerTrigger1) *2; // bar graph powermeter (scale intPowerMeterSum/powerTrigger1 with *100/PLEVELSCALE)
-      if (v <= 0) { LCDattributesReverse(); } // buzzer on? then add some blink for attention
+      #ifndef OLED_I2C_128x64
+        if (v <= 0) { LCDattributesReverse(); } // buzzer on? then add some blink for attention
+      #endif
       LCDbar(7, v);
       LCDattributesOff();
     }
@@ -1962,7 +1970,9 @@ void lcd_telemetry() {
           } else { // ... armed time
             uint16_t ats = armedTime / 1000000;
             #ifdef ARMEDTIMEWARNING
-              if (ats > conf.armedtimewarning) { LCDattributesReverse(); }
+              #ifndef OLED_I2C_128x64
+                if (ats > conf.armedtimewarning) { LCDattributesReverse(); }
+              #endif
               LCDbar(7, (ats < conf.armedtimewarning ? (((conf.armedtimewarning-ats+1)*50)/(conf.armedtimewarning+1)*2) : 0 ));
               LCDattributesOff();
             #endif
