@@ -936,7 +936,7 @@
     //#define MULTIPLE_CONFIGURATION_PROFILES
 
   /*************      do no reset constants when change of flashed program is detected ***********/
-    //#define NO_FLASH_CHECK
+    #define NO_FLASH_CHECK
 
 /*************************************************************************************************/
 /*****************                                                                 ***************/
@@ -1032,7 +1032,7 @@
      *                #failsafe@disarm, #i2c_errs@disarm
      * Enable one or more options to show the log
      */
-    //#define LOG_PERMANENT
+    #define LOG_PERMANENT
     //#define LOG_PERMANENT_SHOW_AT_STARTUP // enable to display log at startup
     //#define LOG_PERMANENT_SHOW_AT_L // enable to display log when receiving 'L'
     //#define LOG_PERMANENT_SHOW_AFTER_CONFIG // enable to display log after exiting LCD config menu
